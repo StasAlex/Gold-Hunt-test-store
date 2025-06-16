@@ -236,6 +236,7 @@
 
                     drawer.renderContents({ sections: parsedState, id: currentVariant });
                     drawer.open();
+                    drawer.classList.remove('is-empty');
                 })
                 .catch(err => {
                     console.error('Failed to update cart drawer:', err);
