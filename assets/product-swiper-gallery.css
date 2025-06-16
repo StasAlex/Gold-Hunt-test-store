@@ -6,7 +6,12 @@
 .product-swiper-gallery .product-gallery-left {
     width: 100%;
     @media screen and (min-width: 1024px) {
-        width: 50%;
+        width: calc(50% - 1rem);
+    }
+}
+.product-swiper-gallery .product-gallery-right {
+    @media screen and (min-width: 1024px) {
+        width: calc(50% - 1rem);
     }
 }
 .product-swiper-gallery .swiper-slide-hidden {
@@ -15,6 +20,7 @@
 .product-swiper-gallery .swiper-container {
     position: relative;
     width: 100%;
+    height: 100%;
     --swiper-navigation-size: 20px;
     --swiper-navigation-color: #8a8a8a;
     --swiper-pagination-color: #8a8a8a;
@@ -27,6 +33,7 @@
     width: 100%;
 }
 .product-swiper-gallery .swiper-slide {
+    display: flex;
     flex-shrink: 0;
     width: 100%;
     height: auto;
@@ -37,6 +44,9 @@
     height: 100%;
     object-fit: cover;
     max-height: 25rem;
+    @media screen and (min-width: 1024px) {
+        max-height: 50rem;
+    }
 }
 .product-swiper-gallery .swatch-icon {
     width: 35px;
@@ -60,7 +70,7 @@
 .product-swiper-gallery .product-form__input select {
     border: none;
     background: transparent;
-    width: 40px;
+    min-width: 40px;
     font-size: 20px;
 }
 .product-swiper-gallery .product-form__input select:focus {
@@ -93,10 +103,19 @@
     font-size: 1.5rem;
     margin-bottom: 1rem;
 }
-.product-swiper-gallery .product-form button[type="submit"] {
+.product-swiper-gallery .product-form button {
     padding: 0.8rem 1.2rem;
     background: black;
     color: white;
     border: none;
     cursor: pointer;
+    max-width: 300px;
+}
+.product-swiper-gallery .option-error {
+    color: #e53935;
+    font-size: 1rem;
+    margin-top: 0.25rem;
+}
+.product-swiper-gallery .option-error-target {
+    border-right: 1px solid #e53935;
 }
