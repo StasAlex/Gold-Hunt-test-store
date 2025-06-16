@@ -3,22 +3,44 @@
   Best Practices: responsive, configurable via schema, optimized for CLI themes
 {% endcomment %}
 
+{{ 'product-swiper-gallery.css' | asset_url | stylesheet_tag }}
+
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
 
+{% assign color_idx = 0 %}
+{% for opt_name in product.options %}
+    {% assign downcased_opt_name = opt_name | downcase %}
+    {% if downcased_opt_name contains 'color' %}
+        {% assign color_idx = forloop.index %}
+        {% break %}
+    {% endif %}
+{% endfor %}
+
 <div class="product-swiper-gallery page-width" data-section-id="{{ section.id }}">
-    <div class="product-gallery-layout" style="display: flex; gap: 2rem; flex-wrap: wrap;">
-        <div class="product-gallery-left" style="width: 100%;">
+    <div class="product-gallery-layout">
+        <div class="product-gallery-left">
             {% if product.media.size == 1 %}
                 {{ product.media[0] | media_tag }}
             {% elsif product.media.size > 1 %}
                 <div class="swiper-container">
                     <div class="swiper-wrapper">
-                        {% assign current_color = product.selected_or_first_available_variant.option1 | downcase %}
                         {% for media in product.media %}
-                            {% assign alt_text = media.alt | downcase %}
-                            <div class="swiper-slide" data-color="{{ alt_text }}">
-                                {{ media | image_url: width: 1000 | image_tag: class: 'swiper-slide-image' }}
-                            </div>
+                            {% if media.media_type == 'image' %}
+                                {% assign slide_color = '' %}
+                                {% if color_idx > 0 %}
+                                    {% for variant in product.variants %}
+                                        {% if variant.featured_media and variant.featured_media.id == media.id %}
+                                            {% assign opt_key = 'option' | append: color_idx %}
+                                            {% assign slide_color = variant[opt_key] | downcase %}
+                                            {% break %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+
+                                <div class="swiper-slide" data-color="{{ slide_color }}">
+                                    {{ media | image_url: width: 1000 | image_tag: class: 'swiper-slide-image' }}
+                                </div>
+                            {% endif %}
                         {% endfor %}
                     </div>
                     {% if section.settings.show_pagination %}
@@ -42,9 +64,8 @@
             <div class="product-price">
                 {% render 'price', product: product %}
             </div>
-
             <div class="product-form">
-                <product-form data-section-id="{{ section.id }}" data-product='{{ product | json }}'>
+                <product-form data-section-id="{{ section.id }}">
                     {% form 'product', product %}
                         <input type="hidden" name="id" value="{{ product.selected_or_first_available_variant.id }}">
                         {% for option in product.options_with_values %}
@@ -53,9 +74,9 @@
                                 {% if option.name == 'Color' %}
                                     <div class="swatch-options">
                                         {% for value in option.values %}
-                                            <label class="swatch" style="cursor: pointer; display: inline-block; margin: 0.25rem;">
-                                                <input type="radio" name="options[{{ option.name }}]" value="{{ value }}"\$1 class="swatch-input" style="--swatch-color: {{ value | downcase }};">
-                                                <svg class="swatch-icon" data-color="{{ value }}">{{ 'icon-heart.svg' | inline_asset_content }}</svg>
+                                            <label style="cursor: pointer; display: inline-block; margin: 0.25rem;">
+                                                <input type="radio" name="options[{{ option.name }}]" value="{{ value }}" class="swatch-input visually-hidden" style="--swatch-color: {{ value | downcase }};">
+                                                <span class="swatch-icon" style="--swatch-color: {{ value | downcase }};">{{ 'icon-heart.svg' | inline_asset_content }}</span>
                                             </label>
                                         {% endfor %}
                                     </div>
@@ -72,7 +93,6 @@
                     {% endform %}
                 </product-form>
             </div>
-        </div>
 
             {% assign accordion_items = product.metafields.custom.accordion_data.value %}
             {% if accordion_items and accordion_items.size > 0 %}
@@ -92,123 +112,99 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const sectionEl = document.querySelector('[data-section-id="{{ section.id }}"]');
-        const swiperEl = sectionEl.querySelector('.swiper-container');
-        if (swiperEl) {
-            const swiper = new Swiper(swiperEl, {
-                slidesPerView: parseInt({{ section.settings.slides_mobile }}),
-                spaceBetween: {{ section.settings.space_between }},
-                loop: true,
-                pagination: {
-                    el: swiperEl.querySelector('.swiper-pagination'),
-                    clickable: true,
-                },
-                navigation: {
-                    nextEl: swiperEl.querySelector('.swiper-button-next'),
-                    prevEl: swiperEl.querySelector('.swiper-button-prev'),
-                },
-                breakpoints: {
-                    768: {
-                        slidesPerView: {{ section.settings.slides_tablet }},
-                    },
-                    1024: {
-                        slidesPerView: {{ section.settings.slides_desktop }},
-                    }
-                }
-            });
+    document.addEventListener('DOMContentLoaded', () => {
+        const sectionEl   = document.querySelector('[data-section-id="{{ section.id }}"]');
+        const swiperEl    = sectionEl.querySelector('.swiper-container');
+        const productForm = sectionEl.querySelector('product-form');
+        const swatches    = Array.from(sectionEl.querySelectorAll('.swatch-input'));
+        const productData = {{ product | json }};
+        const colorIndex  = {{ color_idx }};
 
-            const variantSelector = document.querySelector('[name="id"]');
-            const updateSlidesByColor = (color) => {
-                swiperEl.querySelectorAll('.swiper-slide').forEach(slide => {
-                    const slideColor = slide.getAttribute('data-color') || '';
-                    const isMatch = slideColor.includes(color);
-                    slide.classList.toggle('swiper-slide-hidden', !isMatch);
-                    slide.style.border = isMatch ? '2px solid #00c853' : 'none';
-                });
-                swiper.update();
-            };
+        if (!swiperEl || !productForm) return;
 
-            if (variantSelector && variantSelector.tagName.toLowerCase() === 'select' && variantSelector.selectedOptions.length > 0) {
-                const selectedColor = variantSelector.selectedOptions[0].textContent.trim().toLowerCase();
-                updateSlidesByColor(selectedColor);
-
-                variantSelector.addEventListener('change', function () {
-                    if (this.selectedOptions.length > 0) {
-                        const newColor = this.selectedOptions[0].textContent.trim().toLowerCase();
-                        updateSlidesByColor(newColor);
-                    }
-                });
+        let swiper = new Swiper(swiperEl, {
+            slidesPerView:  parseInt({{ section.settings.slides_mobile }}),
+            spaceBetween:  {{ section.settings.space_between }},
+            loop:           true,
+            allowTouchMove: true,
+            pagination:     { el: swiperEl.querySelector('.swiper-pagination'), clickable: true },
+            navigation:     {
+                nextEl: swiperEl.querySelector('.swiper-button-next'),
+                prevEl: swiperEl.querySelector('.swiper-button-prev'),
+            },
+            breakpoints: {
+                768:  { slidesPerView: {{ section.settings.slides_tablet }} },
+                1024: { slidesPerView: {{ section.settings.slides_desktop }} }
             }
-        }
+        });
 
-        sectionEl.querySelectorAll('.accordion-header').forEach(button => {
-            button.addEventListener('click', () => {
-                const isMultiple = sectionEl.querySelector('.product-accordion')?.dataset.multiple === 'true';
-                const body = button.nextElementSibling;
-                const expanded = button.getAttribute('aria-expanded') === 'true';
+        const originalSlides = Array.from(
+            swiper.wrapperEl.querySelectorAll('.swiper-slide:not(.swiper-slide-duplicate)')
+        );
 
-                if (!isMultiple) {
-                    sectionEl.querySelectorAll('.accordion-header').forEach(b => b.setAttribute('aria-expanded', 'false'));
-                    sectionEl.querySelectorAll('.accordion-body').forEach(b => b.style.display = 'none');
+        const getColorValue = variant => {
+            if (Array.isArray(variant.options) && variant.options.length >= colorIndex && colorIndex > 0) {
+                return variant.options[colorIndex - 1].toLowerCase();
+            }
+            const key = `option${colorIndex}`;
+            return variant[key] ? variant[key].toLowerCase() : '';
+        };
+
+        const updateSlidesByColor = (color) => {
+            const container = swiperEl;
+            const currentHeight = container.clientHeight;
+            container.style.minHeight = `${currentHeight}px`;
+
+            const slidesToRender = !color
+                ? originalSlides
+                : originalSlides.filter(slide => (slide.dataset.color || '').toLowerCase() === color);
+
+            const slidesHTML = slidesToRender.map(slide => slide.outerHTML);
+
+            swiper.removeAllSlides();
+            swiper.appendSlide(slidesHTML);
+
+            swiper.update();
+            swiper.loopFix();
+
+            container.style.minHeight = '';
+        };
+
+        swatches.forEach(input => {
+            input.addEventListener('click', (e) => {
+                const selColor = input.value.trim().toLowerCase();
+                const hadAttr  = input.hasAttribute('checked');
+
+                if (hadAttr) {
+                    input.removeAttribute('checked');
+                    input.checked = false;
+                    updateSlidesByColor('');
+                } else {
+                    swatches.forEach(i => {
+                        i.removeAttribute('checked');
+                        i.checked = false;
+                    });
+                    input.setAttribute('checked', 'checked');
+                    input.checked = true;
+
+                    const variant = productData.variants.find(v =>
+                        getColorValue(v) === selColor
+                    );
+                    if (variant) {
+                        productForm.querySelector('input[name="id"]').value = variant.id;
+                        productForm.dispatchEvent(new CustomEvent('variantChange', { detail: { variant } }));
+                    }
                 }
-
-                button.setAttribute('aria-expanded', !expanded);
-                body.style.display = expanded ? 'none' : 'block';
             });
+        });
+
+        productForm.addEventListener('variantChange', e => {
+            updateSlidesByColor(getColorValue(e.detail.variant));
         });
     });
 </script>
-
-<style>
-    .product-swiper-gallery {
-        overflow-x: hidden;
-    }
-    .swiper-container {
-        width: 100%;
-        position: relative;
-        --swiper-navigation-size: 20px;
-        --swiper-navigation-color: #000000;
-        --swiper-pagination-color: #000000;
-        --swiper-pagination-bottom: -3rem;
-    }
-    .swiper-wrapper {
-        display: flex;
-        width: 100%;
-    }
-    .swiper-slide {
-        flex-shrink: 0;
-        width: 100%;
-        height: auto;
-        text-align: center;
-    }
-    .swiper-slide-image {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    .swatch-icon {
-        width: 24px;
-        height: 24px;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 1.5px;
-        transition: fill 0.3s ease;
-    }
-    .swatch-input + .swatch-icon {
-        stroke: var(--swatch-color);
-    }
-    .swatch-input:checked + .swatch-icon {
-        fill: var(--swatch-color);
-    }
-    .accordion-body { display: none; padding: 10px 0; }
-    .accordion-header { display: block; width: 100%; background: #f4f4f4; padding: 10px; text-align: left; border: none; cursor: pointer; }
-    .product-title { font-size: 1.8rem; font-weight: bold; margin-bottom: 1rem; }
-    .product-description { margin-bottom: 1rem; color: #555; }
-    .product-price { font-size: 1.5rem; margin-bottom: 1rem; }
-    .product-form button[type="submit"] { padding: 0.8rem 1.2rem; background: black; color: white; border: none; cursor: pointer; }
-</style>
 
 {% schema %}
 {

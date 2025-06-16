@@ -104,7 +104,7 @@
       "type": "product-swiper-gallery",
       "name": "Product Swiper Gallery",
       "settings": {
-        "slides_desktop": 4,
+        "slides_desktop": 2,
         "slides_tablet": 2,
         "slides_mobile": "2",
         "show_pagination": true,
