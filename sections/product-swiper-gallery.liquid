@@ -1,0 +1,274 @@
+{% comment %}
+  Section: Product Swiper Gallery with color-based filtering & accordion
+  Best Practices: responsive, configurable via schema, optimized for CLI themes
+{% endcomment %}
+
+{{ 'product-swiper-gallery.css' | asset_url | stylesheet_tag }}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+
+{% assign color_idx = 0 %}
+{% for opt_name in product.options %}
+    {% assign downcased_opt_name = opt_name | downcase %}
+    {% if downcased_opt_name contains 'color' %}
+        {% assign color_idx = forloop.index %}
+        {% break %}
+    {% endif %}
+{% endfor %}
+
+<div class="product-swiper-gallery page-width" data-section-id="{{ section.id }}">
+    <div class="product-gallery-layout">
+        <div class="product-gallery-left">
+            {% if product.media.size == 1 %}
+                {{ product.media[0] | media_tag }}
+            {% elsif product.media.size > 1 %}
+                <div class="swiper-container">
+                    <div class="swiper-wrapper">
+                        {% for media in product.media %}
+                            {% if media.media_type == 'image' %}
+                                {% assign slide_color = '' %}
+                                {% if color_idx > 0 %}
+                                    {% for variant in product.variants %}
+                                        {% if variant.featured_media and variant.featured_media.id == media.id %}
+                                            {% assign opt_key = 'option' | append: color_idx %}
+                                            {% assign slide_color = variant[opt_key] | downcase %}
+                                            {% break %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+
+                                <div class="swiper-slide" data-color="{{ slide_color }}">
+                                    {{ media | image_url: width: 1000 | image_tag: class: 'swiper-slide-image' }}
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% if section.settings.show_pagination %}
+                        <div class="swiper-pagination"></div>
+                    {% endif %}
+                    {% if section.settings.show_navigation %}
+                        <div class="swiper-button-prev">
+                            {{ 'icon-caret.svg' | inline_asset_content }}
+                        </div>
+                        <div class="swiper-button-next">
+                            {{ 'icon-caret.svg' | inline_asset_content }}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="product-gallery-right" style="flex: 1 1 50%;">
+            <h1 class="product-title">{{ product.title }}</h1>
+            <div class="product-description">{{ product.description }}</div>
+            <div class="product-price">
+                {% render 'price', product: product %}
+            </div>
+            <div class="product-form">
+                <product-form data-section-id="{{ section.id }}">
+                    {% form 'product', product %}
+                        <input type="hidden" name="id" value="{{ product.selected_or_first_available_variant.id }}">
+                        {% for option in product.options_with_values %}
+                            <div class="product-form__input">
+                                <label class="form__label">{{ option.name }}</label>
+                                {% if option.name == 'Color' %}
+                                    <div class="swatch-options">
+                                        {% for value in option.values %}
+                                            <label style="cursor: pointer; display: inline-block; margin: 0.25rem;">
+                                                <input type="radio" name="options[{{ option.name }}]" value="{{ value }}" class="swatch-input visually-hidden" style="--swatch-color: {{ value | downcase }};">
+                                                <span class="swatch-icon" style="--swatch-color: {{ value | downcase }};">{{ 'icon-heart.svg' | inline_asset_content }}</span>
+                                            </label>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <select name="options[{{ option.name }}]">
+                                        {% for value in option.values %}
+                                            <option value="{{ value }}">{{ value }}</option>
+                                        {% endfor %}
+                                    </select>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                        <button type="submit" class="product-form__submit button button--full-width">{{ 'products.product.add_to_cart' | t }}</button>
+                    {% endform %}
+                </product-form>
+            </div>
+
+            {% assign accordion_items = product.metafields.custom.accordion_data.value %}
+            {% if accordion_items and accordion_items.size > 0 %}
+                <div class="product-accordion" data-multiple="{{ section.settings.allow_multiple }}">
+                    {% for block in accordion_items %}
+                        {% if block.title != blank and block.content != blank %}
+                            <div class="accordion-item">
+                                <button class="accordion-header" aria-expanded="false">{{ block.title }}</button>
+                                <div class="accordion-body">{{ block.content }}</div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const sectionEl   = document.querySelector('[data-section-id="{{ section.id }}"]');
+        const swiperEl    = sectionEl.querySelector('.swiper-container');
+        const productForm = sectionEl.querySelector('product-form');
+        const swatches    = Array.from(sectionEl.querySelectorAll('.swatch-input'));
+        const productData = {{ product | json }};
+        const colorIndex  = {{ color_idx }};
+
+        if (!swiperEl || !productForm) return;
+
+        let swiper = new Swiper(swiperEl, {
+            slidesPerView:  parseInt({{ section.settings.slides_mobile }}),
+            spaceBetween:  {{ section.settings.space_between }},
+            loop:           true,
+            allowTouchMove: true,
+            pagination:     { el: swiperEl.querySelector('.swiper-pagination'), clickable: true },
+            navigation:     {
+                nextEl: swiperEl.querySelector('.swiper-button-next'),
+                prevEl: swiperEl.querySelector('.swiper-button-prev'),
+            },
+            breakpoints: {
+                768:  { slidesPerView: {{ section.settings.slides_tablet }} },
+                1024: { slidesPerView: {{ section.settings.slides_desktop }} }
+            }
+        });
+
+        const originalSlides = Array.from(
+            swiper.wrapperEl.querySelectorAll('.swiper-slide:not(.swiper-slide-duplicate)')
+        );
+
+        const getColorValue = variant => {
+            if (Array.isArray(variant.options) && variant.options.length >= colorIndex && colorIndex > 0) {
+                return variant.options[colorIndex - 1].toLowerCase();
+            }
+            const key = `option${colorIndex}`;
+            return variant[key] ? variant[key].toLowerCase() : '';
+        };
+
+        const updateSlidesByColor = (color) => {
+            const container = swiperEl;
+            const currentHeight = container.clientHeight;
+            container.style.minHeight = `${currentHeight}px`;
+
+            const slidesToRender = !color
+                ? originalSlides
+                : originalSlides.filter(slide => (slide.dataset.color || '').toLowerCase() === color);
+
+            const slidesHTML = slidesToRender.map(slide => slide.outerHTML);
+
+            swiper.removeAllSlides();
+            swiper.appendSlide(slidesHTML);
+
+            swiper.update();
+            swiper.loopFix();
+
+            container.style.minHeight = '';
+        };
+
+        swatches.forEach(input => {
+            input.addEventListener('click', (e) => {
+                const selColor = input.value.trim().toLowerCase();
+                const hadAttr  = input.hasAttribute('checked');
+
+                if (hadAttr) {
+                    input.removeAttribute('checked');
+                    input.checked = false;
+                    updateSlidesByColor('');
+                } else {
+                    swatches.forEach(i => {
+                        i.removeAttribute('checked');
+                        i.checked = false;
+                    });
+                    input.setAttribute('checked', 'checked');
+                    input.checked = true;
+
+                    const variant = productData.variants.find(v =>
+                        getColorValue(v) === selColor
+                    );
+                    if (variant) {
+                        productForm.querySelector('input[name="id"]').value = variant.id;
+                        productForm.dispatchEvent(new CustomEvent('variantChange', { detail: { variant } }));
+                    }
+                }
+            });
+        });
+
+        productForm.addEventListener('variantChange', e => {
+            updateSlidesByColor(getColorValue(e.detail.variant));
+        });
+    });
+</script>
+
+{% schema %}
+{
+  "name": "Product Swiper Gallery",
+  "settings": [
+    {
+      "type": "range",
+      "id": "slides_desktop",
+      "label": "Slides on desktop",
+      "min": 1,
+      "max": 6,
+      "default": 4
+    },
+    {
+      "type": "range",
+      "id": "slides_tablet",
+      "label": "Slides on tablet",
+      "min": 1,
+      "max": 4,
+      "default": 2
+    },
+    {
+      "type": "select",
+      "id": "slides_mobile",
+      "label": "Slides on mobile",
+      "options": [
+        { "value": "1", "label": "1" },
+        { "value": "2", "label": "2" }
+      ],
+      "default": "1"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_pagination",
+      "label": "Show pagination",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_navigation",
+      "label": "Show navigation arrows",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "space_between",
+      "label": "Space between slides (px)",
+      "min": 0,
+      "max": 50,
+      "default": 10
+    },
+    {
+      "type": "checkbox",
+      "id": "allow_multiple",
+      "label": "Allow multiple accordions open",
+      "default": false
+    }
+  ],
+  "presets": [
+    {
+      "name": "Product Swiper Gallery",
+      "category": "Product"
+    }
+  ],
+  "templates": ["product"]
+}
+{% endschema %}
