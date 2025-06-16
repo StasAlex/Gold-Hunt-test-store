@@ -37,8 +37,14 @@
                                     {% endfor %}
                                 {% endif %}
 
-                                <div class="swiper-slide" data-color="{{ slide_color }}">
-                                    {{ media | image_url: width: 1000 | image_tag: class: 'swiper-slide-image' }}
+                                <div class="swiper-slide" data-color="{{ slide_color | default: 'slide-color' }}">
+                                    {% comment %} всегда используем preview_image, даже для «простых» картинок {% endcomment %}
+                                    <img
+                                            src="{{ media.preview_image | image_url: width: 1000 }}"
+                                            alt="{{ media.alt }}"
+                                            loading="lazy"
+                                            class="swiper-slide-image"
+                                    />
                                 </div>
                             {% endif %}
                         {% endfor %}
@@ -58,18 +64,18 @@
             {% endif %}
         </div>
 
-        <div class="product-gallery-right" style="flex: 1 1 50%;">
+        <div class="product-gallery-right">
             <h1 class="product-title">{{ product.title }}</h1>
             <div class="product-description">{{ product.description }}</div>
             <div class="product-price">
                 {% render 'price', product: product %}
             </div>
             <div class="product-form">
-                <product-form data-section-id="{{ section.id }}">
+                <div data-section-id="{{ section.id }}">
                     {% form 'product', product %}
                         <input type="hidden" name="id" value="{{ product.selected_or_first_available_variant.id }}">
                         {% for option in product.options_with_values %}
-                            <div class="product-form__input">
+                            <div class="product-form__input" data-option-name="{{ option.name }}">
                                 <label class="form__label">{{ option.name }}</label>
                                 {% if option.name == 'Color' %}
                                     <div class="swatch-options">
@@ -89,9 +95,9 @@
                                 {% endif %}
                             </div>
                         {% endfor %}
-                        <button type="submit" class="product-form__submit button button--full-width">{{ 'products.product.add_to_cart' | t }}</button>
+                        <button class="product-form__submit button button--full-width">{{ 'products.product.add_to_cart' | t }}</button>
                     {% endform %}
-                </product-form>
+                </div>
             </div>
 
             {% assign accordion_items = product.metafields.custom.accordion_data.value %}
@@ -115,12 +121,14 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const sectionEl   = document.querySelector('[data-section-id="{{ section.id }}"]');
-        const swiperEl    = sectionEl.querySelector('.swiper-container');
-        const productForm = sectionEl.querySelector('product-form');
-        const swatches    = Array.from(sectionEl.querySelectorAll('.swatch-input'));
-        const productData = {{ product | json }};
-        const colorIndex  = {{ color_idx }};
+        const sectionEl    = document.querySelector('[data-section-id="{{ section.id }}"]');
+        const swiperEl     = sectionEl.querySelector('.swiper-container');
+        const productForm  = sectionEl.querySelector('.product-form');
+        const variantField = productForm.querySelector('input[name="id"]');
+        const swatches     = Array.from(sectionEl.querySelectorAll('.swatch-input'));
+        const addToCartBtn = sectionEl.querySelector('.product-form__submit');
+        const productData  = {{ product | json }};
+        const colorIndex   = {{ color_idx }};
 
         if (!swiperEl || !productForm) return;
 
@@ -172,6 +180,83 @@
             container.style.minHeight = '';
         };
 
+        const updateCartBubble = () => {
+            fetch('/cart.js')
+                .then(res => res.json())
+                .then(cart => {
+                    const count = cart.item_count;
+                    const cartIcon = document.getElementById('cart-icon-bubble');
+                    if (!cartIcon) return;
+
+                    const svg = cartIcon.querySelector('svg');
+                    if (svg) {
+                        svg.classList.remove('icon-cart-empty');
+                        svg.classList.add('icon-cart');
+                    }
+
+                    let bubble = cartIcon.querySelector('.cart-count-bubble');
+                    if (!bubble) {
+                        bubble = document.createElement('div');
+                        bubble.className = 'cart-count-bubble';
+                        cartIcon.appendChild(bubble);
+                    }
+
+                    let visibleCount = bubble.querySelector('span[aria-hidden="true"]');
+                    let hiddenCount  = bubble.querySelector('span.visually-hidden');
+                    if (!visibleCount) {
+                        visibleCount = document.createElement('span');
+                        visibleCount.setAttribute('aria-hidden', 'true');
+                        bubble.appendChild(visibleCount);
+                    }
+                    if (!hiddenCount) {
+                        hiddenCount = document.createElement('span');
+                        hiddenCount.className = 'visually-hidden';
+                        bubble.appendChild(hiddenCount);
+                    }
+
+                    visibleCount.textContent = count;
+                    hiddenCount.textContent  = `${count} ${count === 1 ? 'item' : 'items'}`;
+
+                    bubble.classList.remove('visually-hidden');
+                })
+                .catch(err => console.error('Could not update cart bubble:', err));
+        }
+
+        const updateCartDrawer = () => {
+            const drawer = document.querySelector('cart-drawer');
+            if (!drawer) return;
+
+            const sectionIds = drawer.getSectionsToRender().map(s => s.id).join(',');
+
+            fetch(`/?sections=${sectionIds}`)
+                .then(res => res.json())
+                .then(parsedState => {
+                    const variantInput = document.querySelector('form[action^="/cart/add"] input[name="id"]');
+                    const currentVariant = variantInput ? parseInt(variantInput.value, 10) : null;
+
+                    drawer.renderContents({ sections: parsedState, id: currentVariant });
+                    drawer.open();
+                })
+                .catch(err => {
+                    console.error('Failed to update cart drawer:', err);
+                });
+        }
+
+        if (swatches.length === 1) {
+            const single = swatches[0];
+            const color  = single.value.trim().toLowerCase();
+
+            single.checked = true;
+            single.setAttribute('checked','checked');
+
+            const variant = productData?.variants.find(v => getColorValue(v) === color);
+            if (variant) {
+                variantField.value = variant.id;
+            }
+
+            updateSlidesByColor(color);
+        }
+
         swatches.forEach(input => {
             input.addEventListener('click', (e) => {
                 const selColor = input.value.trim().toLowerCase();
@@ -189,6 +274,11 @@
                     input.setAttribute('checked', 'checked');
                     input.checked = true;
 
+                    productForm.querySelectorAll('.option-error').forEach(el => el.remove());
+                    productForm.querySelectorAll('.option-error-target').forEach(el => {
+                        el.classList.remove('option-error-target');
+                    });
+
                     const variant = productData.variants.find(v =>
                         getColorValue(v) === selColor
                     );
@@ -202,6 +292,79 @@
 
         productForm.addEventListener('variantChange', e => {
             updateSlidesByColor(getColorValue(e.detail.variant));
+        });
+
+        addToCartBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const missing = [];
+            productData.options.forEach(optionName => {
+                const fieldName = `options[${optionName}]`;
+                const elements = productForm.querySelectorAll(`[name="${fieldName}"]`);
+                let value = '';
+
+                if (!elements.length) return;
+
+                if (elements[0].tagName.toLowerCase() === 'select') {
+                    value = elements[0].value;
+                } else {
+                    const checkedRadio = productForm.querySelector(
+                        `[name="${fieldName}"]:checked`
+                    );
+                    value = checkedRadio ? checkedRadio.value : '';
+                }
+
+                if (!value) missing.push(optionName);
+            });
+
+            productForm.querySelectorAll('.option-error').forEach(el => el.remove());
+            productForm.querySelectorAll('.option-error-target').forEach(el => {
+                el.classList.remove('option-error-target');
+            });
+
+            if (missing.length) {
+                missing.forEach(optName => {
+                    const container = productForm.querySelector(`[data-option-name="${optName}"]`);
+                    if (container) {
+                        container.classList.add('option-error-target');
+                        const msg = document.createElement('div');
+                        msg.className = 'option-error';
+                        msg.textContent = `Please select ${optName}`;
+                        container.appendChild(msg);
+                    }
+                });
+                return;
+            }
+
+            const variantId = parseInt(
+                productForm.querySelector('input[name="id"]').value,
+                10
+            );
+
+            const quantity = 1;
+
+            addToCartBtn.disabled = true;
+            addToCartBtn.textContent = 'Adding…';
+
+            try {
+                const response = await fetch('/cart/add.js', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: variantId, quantity })
+                });
+
+                if (!response.ok) throw new Error(`Status ${response.status}`);
+                const item = await response.json();
+
+                updateCartBubble();
+                updateCartDrawer();
+            } catch (error) {
+                console.error('Add to cart error:', error);
+                alert('Failed to add item to cart. Please try again later.');
+            } finally {
+                addToCartBtn.disabled = false;
+                addToCartBtn.textContent = '{{ "products.product.add_to_cart" | t }}';
+            }
         });
     });
 </script>
