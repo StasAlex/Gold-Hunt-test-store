@@ -105,10 +105,13 @@
                 <div class="product-accordion" data-multiple="{{ section.settings.allow_multiple }}">
                     {% for block in accordion_items %}
                         {% if block.title != blank and block.content != blank %}
-                            <div class="accordion-item">
-                                <button class="accordion-header" aria-expanded="false">{{ block.title }}</button>
+                            <details class="accordion-item">
+                                <summary class="accordion-header">
+                                    <span>{{ block.title }}</span>
+                                    {{- 'icon-caret.svg' | inline_asset_content -}}
+                                </summary>
                                 <div class="accordion-body">{{ block.content }}</div>
-                            </div>
+                            </details>
                         {% endif %}
                     {% endfor %}
                 </div>
@@ -132,10 +135,11 @@
 
         if (!swiperEl || !productForm) return;
 
+        // Custom product swiper gallery
         let swiper = new Swiper(swiperEl, {
             slidesPerView:  parseInt({{ section.settings.slides_mobile }}),
             spaceBetween:  {{ section.settings.space_between }},
-            loop:           true,
+            loop: true,
             allowTouchMove: true,
             pagination:     { el: swiperEl.querySelector('.swiper-pagination'), clickable: true },
             navigation:     {
@@ -236,6 +240,7 @@
 
                     drawer.renderContents({ sections: parsedState, id: currentVariant });
                     drawer.open();
+                    drawer.classList.remove('is-empty');
                 })
                 .catch(err => {
                     console.error('Failed to update cart drawer:', err);
@@ -294,6 +299,7 @@
             updateSlidesByColor(getColorValue(e.detail.variant));
         });
 
+        // Custom product section add to cart handle
         addToCartBtn.addEventListener('click', async (e) => {
             e.preventDefault();
 
@@ -365,6 +371,43 @@
                 addToCartBtn.disabled = false;
                 addToCartBtn.textContent = '{{ "products.product.add_to_cart" | t }}';
             }
+        });
+
+        // Custom product accordion handle
+        const accordion = document.querySelector('.product-accordion');
+        const isMultiple = accordion?.dataset.multiple === 'true';
+
+        accordion.querySelectorAll('details').forEach((detail) => {
+            const summary = detail.querySelector('summary');
+            const content = detail.querySelector('.accordion-body');
+
+            if (!detail.hasAttribute('open')) content.style.height = '0px';
+
+            summary.addEventListener('click', function (e) {
+                e.preventDefault();
+
+                const isOpen = detail.hasAttribute('open');
+
+                if (!isOpen) {
+                    if (!isMultiple) {
+                        accordion.querySelectorAll('details[open]').forEach((openDetail) => {
+                            if (openDetail !== detail) {
+                                openDetail.removeAttribute('open');
+                                const otherContent = openDetail.querySelector('.accordion-body');
+                                otherContent.style.height = '0px';
+                            }
+                        });
+                    }
+
+                    detail.setAttribute('open', true);
+                    content.style.height = content.scrollHeight + 'px';
+                } else {
+                    content.style.height = '0px';
+                    setTimeout(() => {
+                        detail.removeAttribute('open');
+                    }, 300);
+                }
+            });
         });
     });
 </script>
