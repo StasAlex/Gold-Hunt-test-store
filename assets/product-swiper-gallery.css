@@ -2,16 +2,20 @@
     display: flex;
     gap: 2rem;
     flex-wrap: wrap;
+    padding: 2rem 0;
+    @media screen and (min-width: 768px) {
+        padding: 5rem 0;
+    }
 }
 .product-swiper-gallery .product-gallery-left {
     width: 100%;
     @media screen and (min-width: 1024px) {
-        width: calc(50% - 1rem);
+        width: calc(60% - 1rem);
     }
 }
 .product-swiper-gallery .product-gallery-right {
     @media screen and (min-width: 1024px) {
-        width: calc(50% - 1rem);
+        width: calc(40% - 1rem);
     }
 }
 .product-swiper-gallery .swiper-slide-hidden {
@@ -20,7 +24,6 @@
 .product-swiper-gallery .swiper-container {
     position: relative;
     width: 100%;
-    height: 100%;
     --swiper-navigation-size: 20px;
     --swiper-navigation-color: #8a8a8a;
     --swiper-pagination-color: #8a8a8a;
@@ -44,8 +47,12 @@
     height: 100%;
     object-fit: cover;
     max-height: 25rem;
+    @media screen and (min-width: 768px) {
+        max-height: initial;
+        height: 40rem;
+    }
     @media screen and (min-width: 1024px) {
-        max-height: 50rem;
+        height: 68.5rem;
     }
 }
 .product-swiper-gallery .swatch-icon {
@@ -77,19 +84,6 @@
     outline: none;
     box-shadow: none;
 }
-.product-swiper-gallery .accordion-body {
-    display: none;
-    padding: 10px 0;
-}
-.product-swiper-gallery .accordion-header {
-    display: block;
-    width: 100%;
-    background: #f4f4f4;
-    padding: 10px;
-    text-align: left;
-    border: none;
-    cursor: pointer;
-}
 .product-swiper-gallery .product-title {
     font-size: 1.8rem;
     font-weight: bold;
@@ -118,4 +112,31 @@
 }
 .product-swiper-gallery .option-error-target {
     border-right: 1px solid #e53935;
+}
+
+.product-swiper-gallery .accordion-header {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    color: #114C76;
+    font-weight: 600;
+    cursor: pointer;
+}
+.product-swiper-gallery .accordion-item {
+    border-bottom: 1px solid #e0e0e0;
+    padding: 0.5rem 0;
+}
+.product-swiper-gallery .accordion-body {
+    overflow: hidden;
+    padding: 0.5rem;
+    transition: all .3s ease-in-out;
+}
+.product-swiper-gallery .accordion-item[open] .accordion-body {
+    height: 100%;
+}
+.product-swiper-gallery .accordion-item .icon-caret {
+    transition: all .3s ease-in-out;
+}
+.product-swiper-gallery .accordion-item[open] .icon-caret {
+    transform: rotate(180deg);
 }
